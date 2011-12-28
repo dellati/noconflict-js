@@ -30,9 +30,9 @@
  *      src:        'http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js',
  *      symbols:    ['jQuery'],
  *      aliases:    { jQuery: ['$'] },
- *      version:    function(){ return NoConflict.testVersion(jQuery.fn.jquery, '1.7.1'); }
+ *      version:    function( $ ){ return NoConflict.testVersion( $.fn.jquery, '1.7.1' ); }
  *      nc_args:    [ true ],
- *      load:       function(source){ ...early-bird actions with jQuery while other deps load... }
+ *      load:       function( source ){ ...early-bird actions with jQuery while other deps load... }
  * }
  *
  * {
@@ -50,14 +50,45 @@
     var prevNC = root.NoConflict;
     var libCache = {};
 
-    var isArray = Array.isArray || function(obj) { return Object.prototype.toString.call( obj ); };
+    var extendObj = function( obj ) {
+        if ( !obj ) { return; }
+        var nextObj, chain = Array.prototype.slice.call(arguments, 1);
+        while ( nextObj = chain.shift() ){
+            for ( var prop in nextObj ) {
+                if ( nextObj.hasOwnProperty( prop ) && typeof nextObj[ prop ] !== "undefined" ){
+                    obj[ prop ] = nextObj[ prop ];
+                }
+            }
+        }
+        return obj;
+    };
 
-    var NoConflict = function(){
+    var isFunction = function( obj ) {
+        return Object.prototype.toString.call( obj ) !== '[object Function]';
+    };
+
+    var isArray = Array.isArray || function( obj ) {
+        return Object.prototype.toString.call( obj ) === '[object Array]';
+    };
+
+    var values = function( obj ) {
+        if ( isArray( obj ) ) { return obj; }
+        var out = [];
+        for ( var name in obj ) {
+            if ( obj.hasOwnProperty( name ) ) {
+                out.push( obj[ name ] );
+            }
+        }
+    };
+
+    var NoConflict = function( options ){
         this.useNative = true;
         this.ensureDefined = false;
         this.removeGlobals = false;
         this.modules = {};
         this.orderRequired = [];
+        this.inProg = 0;
+        extendObj( this, options );
     };
 
     NoConflict.prototype.ALL = '__all__';
@@ -76,8 +107,8 @@
 
             var instance = this.resolve( symbol );
             if ( instance && this.useNative ){
-                var nativeNC = context[ 'noConflict' ];
-                if ( nativeNC && nativeNC[ 'apply' ] ) { return nativeNC.apply( context, nc_args ); }
+                var nativeNC = instance[ 'noConflict' ];
+                if ( nativeNC && nativeNC[ 'apply' ] ) { return nativeNC.apply( instance, nc_args ); }
             }
 
             this.reset( symbol, libCache[ symbol ]);
@@ -118,6 +149,10 @@
         return false;
     };
 
+    NoConflict.prototype.watch = function( symbols ) {
+
+    };
+
     NoConflict.prototype.reset = function( symbol, instance, context ) {
         var parts = (symbol || '').split( '.' ),
             instanceName = parts.pop();
@@ -128,33 +163,109 @@
         return ( context[ instanceName ] = instance );
     };
 
+
     // Methods for loading dependencies.
 
     NoConflict.prototype.require = function( specs ) {
+
+        var defaultSpec = {
+            name: '',
+            src: '',
+            symbols: [],
+            aliases: [],
+            version: '',
+            nc_args: [],
+            load: function(){}
+        };
+
         isArray( specs ) || ( specs = [ specs ] );
+
         var seqStart = this.orderRequired.length;
+
         for ( var i = 0; i < specs.length; i++ ) {
-            specs[ i ].sequenceNum = seqStart + i;
-            specs[ i ].blocks = {};
-            this.modules[ specs[ i ].name ] = specs[ i ];
-            this.orderRequired.push( specs[ i ] );
+
+            var spec = extendObj( {}, defaultSpec, specs[ i ] );
+            spec.sequenceNum = seqStart + i;
+            spec.blocks = {};
+            this.modules[ spec.name ] = spec;
+            this.orderRequired.push( spec );
         }
     };
 
-    NoConflict.prototype.load = function( loadFunc, callback ) {
-        var deps = this.dependencyTree();
-        for ( var i = 0; i < deps.length; i++ ) {
+    NoConflict.prototype.load = function( loadFunc, callback, deps ) {
+
+        // Try to use jQuery's script loader if none provided.
+        loadFunc || ( loadFunc = jQuery && jQuery.getScript );
+        if ( !isFunction( loadFunc ) ) { return; }
+
+        if ( !deps ) {
+            this.inProg = 0;
+            deps = this.dependencyTree();
         }
+
+        isArray( deps ) || ( deps = values( deps ) );
+
+        for ( var i = 0; i < deps.length; i++ ) {
+
+            var versionTest = deps[ i ].version
+            if ( !isFunction( versionTest ) ) {
+                versionTest = function( instance ) {
+                    return this.testVersion( instance[ 'version' ], deps[ i ].version );
+                };
+            }
+
+            // Verify that the dependency isn't already satisfied.
+            var symbol = deps[ i ].symbols.length && deps[ i ].symbols[ 0 ];
+            if ( this.check( symbol, versionTest ) ) {
+                deps[ i ].load();
+                continue;
+            }
+
+            var loader = this, dep = deps[ i ], load_cb = function() {
+                dep.load.apply( dep, arguments );
+                loader.load( loadFunc, callback, dep.blocks )
+                loader.inProg--;
+
+                loader.inProg || callback( loader );
+            };
+
+            this.inProg++;
+            loadFunc( deps[ i ].src, load_cb );
+        }
+
+        this.inProg || callback( this );
     };
 
     NoConflict.prototype.dependencyTree = function() {
+        var sources = {};
+
         // First pass: parent linkage.
         for ( var i = 0; i < this.modules.length; i++ ) {
+
             if ( !this.modules[ i ].depends ) { continue; }
+
+            if ( sources[ this.modules[ i ].src ] ) {
+
+                // This module's requirements are satisfied already by another.  Remove any reference to it.
+                this.orderRequired[ this.modules[ i ].sequenceNum ] = null;
+
+                for (var j = 0; j < this.modules.length; j++ ) {
+                    if ( this.modules[ j ].blocks && this.modules[ j ].blocks[ this.modules[ i ].name ] ) {
+                        delete this.modules[ j ].blocks[ this.modules[ i ].name ];
+                    }
+                }
+
+                this.modules[ i ] = null;
+                continue;
+            }
+
+            sources[ this.modules[ i ].src ] = true;
             var depends = this.modules[ i ].depends;
+
             for ( var j = 0; j < depends.length; j++ ) {
                 this.modules[ i ].blocks[ depends[ j ].name ] = depends[ j ];
             }
+
             this.orderRequired[ this.modules[ i ].sequenceNum ] = null;
         }
 
@@ -178,7 +289,7 @@
 
         // We'll hold 'n.0' as equivalent to 'n'.
         var trailingZero = /[.]0$/;
-        actual = ('' + actual).replace( trailingZero,'' ), required = ('' + required).replace( trailingZero,'' );
+        actual = ('' + actual ).replace( trailingZero,'' ), required = ('' + required ).replace( trailingZero,'' );
 
         if ( condition === '=' ) { return actual == required; }
 
@@ -196,8 +307,9 @@
                 return false;
         }
 
-        // Test each segment of the version string separately.
+        // We have to test each segment of the version string separately.
         actual = actual.split( '.' ), required = required.replace( condition, '' ).split( '.' );
+
         for ( var i = 0; i < actual.length; i++ ){
             if ( !( i in required ) ) { return false; }
 
@@ -215,5 +327,7 @@
     NoConflict.prototype.clear = function() { libCache = {}; };
 
     root[ 'NoConflict' ] = new NoConflict;
+
+
 
 } ).call( this );
