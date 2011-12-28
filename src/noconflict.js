@@ -93,6 +93,18 @@
 
     NoConflict.prototype.ALL = '__all__';
 
+    NoConflict.prototype.factory = function( options ) {
+        options || ( options = {} );
+        var nc = new NoConflict( options );
+        if ( options.noCache ) {
+            return (function(){
+                var libCache = {};
+                return nc;
+            })();
+        }
+        return nc;
+    };
+
     NoConflict.prototype.noConflict = function( symbol, nc_args ) {
 
         if ( symbol ){
