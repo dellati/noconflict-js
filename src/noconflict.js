@@ -84,7 +84,6 @@
     var NoConflict = function( options ){
         this.useNative = true;
         this.ensureDefined = false;
-        this.removeGlobals = false;
         this.modules = {};
         this.orderRequired = [];
         this.inProg = 0;
@@ -171,7 +170,11 @@
 
         context = this.resolve( parts.join( '.' ), context);
 
-        if ( ! ( context && instanceName && instance ) ) { return; }
+        if ( ! ( context && instanceName ) ) { return; }
+        if ( typeof instance === "undefined" ) {
+            delete context[ instanceName ];
+            return;
+        }
         return ( context[ instanceName ] = instance );
     };
 
