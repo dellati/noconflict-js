@@ -23,4 +23,5 @@ doc:
 	${DOC_EXEC} ${NC}	
 
 test:
-	@@echo "Test runner goes here"
+	@@echo "Running tests in node.js:"
+	node ${TESTS_DIR}/runner-node.js

@@ -1,0 +1,10 @@
+{
+    "name"          : "noconflict",
+    "description"   : "Generic conflict-management library for JavaScript",
+    "homepage"      : "http://github.com/mattucf/noconflict/",
+    "keywords"      : ["util", "namespace", "conflict"],
+    "author"        : "Matt Brown <matt@thataddress.com>",
+    "repository"    : {"type": "git", "url": "git://github.com/mattucf/noconflict.git"},
+    "main"          : "noconflict.js",
+    "version"       : "0.1"
+}
