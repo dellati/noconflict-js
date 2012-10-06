@@ -1,6 +1,6 @@
 // Adapted from:
 // http://elegantcode.com/2011/03/07/taking-baby-steps-with-node-js-bdd-style-unit-tests-with-jasmine-node-sprinkled-with-some-should/
-global.NoConflict = require('../noconflict.js');
+global.NoConflict = require('../noconflict.js').NoConflict;
 
 var jasmine = require('jasmine-node');
 

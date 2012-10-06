@@ -15,9 +15,6 @@
     // The current version.
     var VERSION = '0.1';
 
-    // We cache current values of symbols having no native `noConflict` method.
-    var symbolCache = {};
-
     // Constant representing all cached symbols.
     var ALL_SYMBOLS = '__all__';
 
@@ -42,12 +39,6 @@
         return result;
     };
 
-    // Copy an object's properties to another object.
-    var extend = function(to, from) {
-        for (var prop in from) {
-            to[prop] = from[prop];
-        }
-    };
 
     // Class - NoConflict
     // ==================
@@ -55,15 +46,17 @@
     // Use the `context` method to get a new instance with custom options, or
     // change options directly on the global object.
     var NoConflict = function (options) {
+        // Private cache for pre-conflict objects, accessible via instance methods.
+        this._symbolCache = {};
+
         options || (options = {});
 
-        // If `true`, use the native `noConflict` method of each symbol, where available.
+        // useNative: if `true` (the default), use the native `noConflict` method of each symbol, where available.
         this.useNative = ('useNative' in options) ? options.useNative : true;
 
-        // If `true`, replace a symbol from cache only if the cached object is defined.
+        // ensureDefined: if `true`, replace a symbol from cache only if the cached object is defined. Default: `false`
         this.ensureDefined = ('ensureDefined' in options) ? options.ensureDefined : false;
     };
-
 
     NoConflict.prototype.version = VERSION;
     NoConflict.prototype.ALL = ALL_SYMBOLS;
@@ -71,15 +64,7 @@
     // context (options)
     // -----------------
     // Factory method.
-    // By default, the new instance shares its symbol cache with the global instance.
-    // Set the `privateCache` option to disable such sharing.
-    NoConflict.prototype.context = function (options) {
-        options || (options = {});
-
-        if (options.privateCache) {
-            var symbolCache = {};
-        }
-
+    NoConflict.context = NoConflict.prototype.context = function (options) {
         return new NoConflict(options);
     };
 
@@ -144,11 +129,11 @@
                 var instance = this.resolve(symbol);
 
                 if (instance && this.useNative && isFunction(instance.noConflict)) {
-                    delete symbolCache[symbol];
+                    delete this._symbolCache[symbol];
                     return instance.noConflict.apply(instance, nc_args);
                 }
 
-                this.reset(symbol, symbolCache[symbol]);
+                this.reset(symbol, this._symbolCache[symbol]);
 
                 return instance;
             }
@@ -156,12 +141,12 @@
             var ns = new NoConflictNamespace,
                 args = arguments;
 
-            if (arguments[0] === ALL_SYMBOLS) {
-                args = keys(symbolCache);
+            if (args[0] === ALL_SYMBOLS) {
+                args = keys(this._symbolCache);
             }
 
-            for (var i = 0; i < arguments.length; i++) {
-                ns.set(isArray(arguments[i]) ? arguments[i][0] : arguments[i], this.noConflict(arguments[i]));
+            for (var i = 0; i < args.length; i++) {
+                ns.set(isArray(args[i]) ? args[i][0] : args[i], this.noConflict(args[i]));
             }
 
             return ns;
@@ -198,7 +183,7 @@
         var instance = this.resolve(symbol, context);
 
         if (instance) {
-            symbolCache[symbol] = instance;
+            this._symbolCache[symbol] = instance;
             return instance;
         }
 
@@ -235,7 +220,7 @@
     // --------
     // Erases the symbol cache.
     NoConflict.prototype.clear = function () {
-        symbolCache = {};
+        this._symbolCache = {};
     };
 
 
@@ -302,10 +287,9 @@
 
     // Exports
     // ========
-    var nc = new NoConflict();
 
-    // Set NoConflict as a global variable (browser) or as the exported object (node.js).
-    typeof exports !== "undefined" ? (extend(exports, nc)) : (root['NoConflict'] = nc);
+    // Create the global `NoConflict` instance.
+    root['NoConflict'] = NoConflict.context();
 
     //Register [AMD](https://github.com/amdjs/amdjs-api/wiki/AMD) module, if applicable.
     typeof define === 'function' && define('noconflict', [], function () {
