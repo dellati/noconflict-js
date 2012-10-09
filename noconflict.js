@@ -3,7 +3,6 @@
 //     License: BSD (see LICENSE)
 
 //TODO: consider whether caching values of free vars is useful.
-//TODO: consider whether an option setting an effective root (non-global) object is useful.
 
 (function () {
     // Environment
@@ -49,16 +48,19 @@
     // Use the `context` method to get a new instance with custom options, or
     // change options directly on the global object.
     var NoConflict = function (options) {
-        // Private cache for pre-conflict objects, accessible via instance methods.
+        options || (options = {});
+
+        // Cache for pre-conflict objects.
         this._symbolCache = {};
 
-        options || (options = {});
+        // Context object: symbols are resolved and conflict management performed relative to this object.
+        this._context = options.context || root;
 
         // useNative: if `true` (the default), use the native `noConflict` method of each symbol, where available.
         this.useNative = ('useNative' in options) ? options.useNative : true;
 
         // ensureDefined: if `true`, replace a symbol from cache only if the cached object is defined. Default: `false`
-        this.ensureDefined = ('ensureDefined' in options) ? options.ensureDefined : false;
+        this.ensureDefined = !!options.ensureDefined;
     };
 
     NoConflict.prototype.version = VERSION;
@@ -165,7 +167,7 @@
     // Return the object assigned to the `symbol`, or `undefined`.  If the `context` parameter
     // is specified, resolve the symbol relative to that object; else use the `global` object.
     NoConflict.prototype.resolve = function (symbol, context) {
-        context || ( context = root );
+        context || ( context = this._context );
         isArray(symbol) || (symbol = symbol.split('.'));
 
         context = context[symbol.shift()];
