@@ -3,6 +3,7 @@ describe('NoConflict Tests', function () {
         it('should exist, and contain a nested namespace class.', function () {
             expect(NoConflict).toBeDefined();
             expect(NoConflict.Namespace).toBeDefined();
+            expect(NoConflictTest).toBeDefined();
         });
 
         it('should expose constants for the version and for all cached symbols', function () {
@@ -12,13 +13,41 @@ describe('NoConflict Tests', function () {
     });
 
     describe('NoConflict Tests', function () {
-        it('resolves symbols into object instances', function () {
+        var ns,
+            nc = NoConflict,
+            nsGlobal = NoConflictTest;
+
+        beforeEach(function () {
+            ns = {duck: {duck: 'goose', '!@#$': 'stuff'}};
+            nsGlobal.duck = ns.duck;
+        });
+
+        afterEach(function () {
+            nc.clear();
+        });
+
+        it('resolves symbols into object instances, with an optional starting context', function () {
+            expect(nc.resolve('NoConflict')).toBe(nc);
+            expect(nc.resolve('NoConflictTest.duck.duck')).toBe('goose');
+            expect(nc.resolve('duck', ns.duck)).toBe('goose');
+            expect(nc.resolve('duck.!@#$', ns)).toBe('stuff');
         });
 
         it('checks for the presence of and caches an object matching a symbol', function () {
+            expect(nc._symbolCache['NoConflict']).toBeUndefined();
+            nc.check('NoConflict');
+            expect(nc._symbolCache['NoConflict']).toBe(nc);
         });
 
-        it('checks for and caches objects matching a list of symbols', function () {
+        it('checks for and caches objects matching a symbol or list of symbols', function () {
+            expect(nc._symbolCache).toEqual({});
+            nc.cache('NoConflict');
+            nc.cache(['NoConflictTest.duck.duck', 'NoConflictTest.duck.!@#$']);
+            expect(nc._symbolCache).toEqual({
+                'NoConflict': nc,
+                'NoConflictTest.duck.duck': 'goose',
+                'NoConflictTest.duck.!@#$': 'stuff'
+            });
         });
 
         it('generates a new context for conflict management [factory method]', function () {

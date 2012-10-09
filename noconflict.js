@@ -2,7 +2,10 @@
 //     (c) 2011-2012 Matt Brown
 //     License: BSD (see LICENSE)
 
-( function () {
+//TODO: consider whether caching values of free vars is useful.
+//TODO: consider whether an option setting an effective root (non-global) object is useful.
+
+(function () {
     // Environment
     // ===========
 
@@ -70,13 +73,12 @@
 
     // cache (symbols [, context])
     // ------------------------
-    // Cache the object[s] currently assigned to the given `symbols` for later conflict management. The optional second
-    // parameter sets the `context` for resolving symbols; else the `global` object is used.
-    NoConflict.prototype.cache = function (symbols, context) {
+    // Cache the object[s] currently assigned to the given `symbols` for later conflict management.
+    NoConflict.prototype.cache = function (symbols) {
         isArray(symbols) || (symbols = [symbols]);
 
         for (var i = 0; i < symbols.length; i++) {
-            this.check(symbols[i], context);
+            this.check(symbols[i]);
         }
 
         return this;
@@ -87,7 +89,7 @@
     // Return a mixin object that provides a custom `noConflict` method for the given symbol[s].
     // The `noConflict` method returns a single value for a single symbol; else a mapping of symbols to values.
     // Conflict management is performed relative to the given `context` object if present; else the `global` object.
-    NoConflict.prototype.mixin = function (symbols, context) {
+    NoConflict.prototype.mixin = function (symbols) {
         var nc = this,
             mixin = {
                 noConflict:function () {
@@ -95,7 +97,7 @@
                 }
             };
 
-        this.cache(symbols, context);
+        this.cache(symbols);
 
         return mixin;
     };
@@ -175,12 +177,11 @@
         return this.resolve(symbol, context);
     };
 
-    // check (symbol [, context])
+    // check (symbol)
     // --------------------------
     // Determine whether the `symbol` specified already matches a real object, and if so, cache the object.
-    // The `context` object, if provided, serves as the reference point for resolving the symbol.
-    NoConflict.prototype.check = function (symbol, context) {
-        var instance = this.resolve(symbol, context);
+    NoConflict.prototype.check = function (symbol) {
+        var instance = this.resolve(symbol);
 
         if (instance) {
             this._symbolCache[symbol] = instance;
@@ -190,19 +191,15 @@
         return false;
     };
 
-    // reset (symbol, instance [, context])
+    // reset (symbol, instance)
     // ------------------------------------
     // Replace the current value matching `symbol` with the `instance`, and return the `NoConflict` object.
     //
-    // The `context` object, if provided, serves as the reference point for resolving the symbol; else the `global`
-    // object is used.
-    //
     // If the replacement `instance` is `undefined`, `reset` removes the object reference altogether.
-    NoConflict.prototype.reset = function (symbol, instance, context) {
+    NoConflict.prototype.reset = function (symbol, instance) {
         var parts = (symbol || '').split('.'),
-            instanceName = parts.pop();
-
-        context = this.resolve(parts, context);
+            instanceName = parts.pop(),
+            context = this.resolve(parts);
 
         if (!/undefined/.text(typeof context + typeof instanceName)) {
             if (typeof instance === "undefined") {
@@ -296,4 +293,4 @@
         return nc;
     });
 
-}).call(this);
+}).call(null);
