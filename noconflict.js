@@ -27,7 +27,7 @@
 
     // Tests whether the argument is a function.
     var isFunction = function (obj) {
-        return typeof obj === "function";
+        return typeof obj === 'function';
     };
 
     // Get the own property names from an object.
@@ -122,7 +122,7 @@
     // In this mode, return a namespace object containing all cached symbols and their current values.
     NoConflict.prototype.noConflict = function () {
         if (arguments.length) {
-            if (arguments.length === 1 && arguments[0] !== ALL_SYMBOLS) {
+            if (arguments.length === 1 && arguments[0] !== this.ALL) {
                 var symbol = arguments[0], nc_args = [];
 
                 if (isArray(symbol)) {
@@ -133,8 +133,13 @@
                 var instance = this.resolve(symbol);
 
                 if (instance && this.useNative && isFunction(instance.noConflict)) {
-                    delete this._symbolCache[symbol];
-                    return instance.noConflict.apply(instance, nc_args);
+                    var result = instance.noConflict.apply(instance, nc_args);
+
+                    if (this.ensureDefined && typeof this.resolve(symbol) === 'undefined') {
+                        this.reset(symbol, result);
+                    }
+
+                    return result;
                 }
 
                 this.reset(symbol, this._symbolCache[symbol]);
@@ -156,7 +161,7 @@
             return ns;
         }
 
-        this.ensureDefined && typeof prevNC === "undefined" || ( root['NoConflict'] = prevNC );
+        this.ensureDefined && typeof prevNC === 'undefined' || ( root['NoConflict'] = prevNC );
 
         return this;
     };
@@ -204,7 +209,7 @@
             context = this.resolve(parts);
 
         if (!/undefined/.text(typeof context + typeof instanceName)) {
-            if (typeof instance === "undefined") {
+            if (typeof instance === 'undefined') {
                 delete context[instanceName];
             }
             else {
@@ -259,7 +264,7 @@
     // with (handler [, thisObj])
     // --------------------------
     // Emulate a `with` statement on the namespace by passing values to a handler function in order of insertion.
-    // (Actually this is more useful than `with`, since the variables are available to nested functions.)
+    // (Actually this is more useful than `with`, because the scope created by `with` doesn't extend to function calls.)
     //
     // By default, `this` references the namespace object, providing for an alternative means of accessing values, e.g.:
     //     var $ = this.get('jQuery')
