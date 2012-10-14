@@ -1,9 +1,6 @@
 //     noconflict.js, version 0.1
 //     (c) 2011-2012 Matt Brown
 //     License: BSD (see LICENSE)
-
-//TODO: consider whether caching values of free vars is useful.
-
 (function () {
     // Environment
     // ===========
@@ -11,7 +8,7 @@
     // Save a reference to the global object.
     var root = this;
 
-    // Save a reference to the current `NoConflict` object.
+    // Save a reference to the previous `NoConflict` object.
     var prevNC = root.NoConflict;
 
     // The current version.
@@ -41,6 +38,28 @@
         return result;
     };
 
+    // Create a copy of an object's own properties.
+    var clone = function (src) {
+        var dest = {};
+
+        for (var name in src) {
+            if (src.hasOwnProperty(name)) {
+                dest[name] = src[name];
+            }
+        }
+
+        return dest;
+    };
+
+    // Extend an object with another object's properties.
+    var extend = function (obj, ext) {
+        for (var name in ext) {
+            obj[name] = ext[name];
+        }
+
+        return obj;
+    };
+
 
     // Class - NoConflict
     // ==================
@@ -50,21 +69,42 @@
     var NoConflict = function (options) {
         options || (options = {});
 
+        this._settings = {
+            // If configured as the global instance, the object can conflict-manage itself.
+            global: false,
+
+            // Context object: symbols are resolved and conflict management performed relative to this object.
+            context: root,
+
+            // useNative: if `true` (the default), use the native `noConflict` method of each symbol, where available.
+            useNative: true,
+
+            // ensureDefined: if `true`, replace a symbol from cache only if the cached object is defined. Default: `false`
+            ensureDefined: false
+        };
+
+        extend(this._settings, options);
+
         // Cache for pre-conflict objects.
         this._symbolCache = {};
-
-        // Context object: symbols are resolved and conflict management performed relative to this object.
-        this._context = options.context || root;
-
-        // useNative: if `true` (the default), use the native `noConflict` method of each symbol, where available.
-        this.useNative = ('useNative' in options) ? options.useNative : true;
-
-        // ensureDefined: if `true`, replace a symbol from cache only if the cached object is defined. Default: `false`
-        this.ensureDefined = !!options.ensureDefined;
     };
 
     NoConflict.prototype.version = VERSION;
     NoConflict.prototype.ALL = ALL_SYMBOLS;
+
+    // useNative (value)
+    // -----------------
+    // Get or set the value for the `useNative` option.
+    NoConflict.prototype.useNative = function (value) {
+        return typeof value === 'undefined' ? this._settings.useNative : (this._settings.useNative = !!value);
+    };
+
+    // ensureDefined (value)
+    // ---------------------
+    // Get or set the value for the `ensureDefined` option.
+    NoConflict.prototype.ensureDefined = function (value) {
+        return typeof value === 'undefined' ? this._settings.ensureDefined : (this._settings.ensureDefined = !!value);
+    };
 
     // context (options)
     // -----------------
@@ -76,11 +116,15 @@
     // cache (symbols [, context])
     // ------------------------
     // Cache the object[s] currently assigned to the given `symbols` for later conflict management.
-    NoConflict.prototype.cache = function (symbols) {
-        isArray(symbols) || (symbols = [symbols]);
+    // Each argument is assumed to be a symbol. Alternatively, a single argument can be passed that is
+    // an array of symbols.
+    NoConflict.prototype.cache = function () {
+        if (arguments.length === 1 && isArray(arguments[0])) {
+            return this.cache.apply(this, arguments[0]);
+        }
 
-        for (var i = 0; i < symbols.length; i++) {
-            this.check(symbols[i]);
+        for (var i = 0; i < arguments.length; i++) {
+            this.check(arguments[i]);
         }
 
         return this;
@@ -90,16 +134,16 @@
     // --------------------------
     // Return a mixin object that provides a custom `noConflict` method for the given symbol[s].
     // The `noConflict` method returns a single value for a single symbol; else a mapping of symbols to values.
-    // Conflict management is performed relative to the given `context` object if present; else the `global` object.
-    NoConflict.prototype.mixin = function (symbols) {
-        var nc = this,
+    NoConflict.prototype.mixin = function () {
+        var symbols = arguments.length > 1 ? Array.prototype.slice.call(arguments) : arguments[0],
+            nc = this.context(extend(clone(this._settings), {global: false, useNative: false})),
             mixin = {
-                noConflict:function () {
+                noConflict: function () {
                     return isArray(symbols) ? nc.noConflict.apply(nc, symbols).get() : nc.noConflict(symbols);
                 }
             };
 
-        this.cache(symbols);
+        nc.cache(symbols);
 
         return mixin;
     };
@@ -126,16 +170,15 @@
                 var symbol = arguments[0], nc_args = [];
 
                 if (isArray(symbol)) {
-                    nc_args.concat(symbol.slice(1));
+                    nc_args = symbol.slice(1);
                     symbol = symbol.shift();
                 }
 
                 var instance = this.resolve(symbol);
-
-                if (instance && this.useNative && isFunction(instance.noConflict)) {
+                if (instance && this._settings.useNative && isFunction(instance.noConflict)) {
                     var result = instance.noConflict.apply(instance, nc_args);
 
-                    if (this.ensureDefined && typeof this.resolve(symbol) === 'undefined') {
+                    if (this.ensureDefined() && typeof this.resolve(symbol) === 'undefined') {
                         this.reset(symbol, result);
                     }
 
@@ -150,10 +193,9 @@
             var ns = new NoConflictNamespace,
                 args = arguments;
 
-            if (args[0] === ALL_SYMBOLS) {
+            if (args[0] === this.ALL) {
                 args = keys(this._symbolCache);
             }
-
             for (var i = 0; i < args.length; i++) {
                 ns.set(isArray(args[i]) ? args[i][0] : args[i], this.noConflict(args[i]));
             }
@@ -161,7 +203,10 @@
             return ns;
         }
 
-        this.ensureDefined && typeof prevNC === 'undefined' || ( root['NoConflict'] = prevNC );
+        if (this._settings.global) {
+            this.reset('NoConflict', prevNC);
+            this._settings.global = false;
+        }
 
         return this;
     };
@@ -172,7 +217,7 @@
     // Return the object assigned to the `symbol`, or `undefined`.  If the `context` parameter
     // is specified, resolve the symbol relative to that object; else use the `global` object.
     NoConflict.prototype.resolve = function (symbol, context) {
-        context || ( context = this._context );
+        context || ( context = this._settings.context );
         isArray(symbol) || (symbol = symbol.split('.'));
 
         context = context[symbol.shift()];
@@ -202,18 +247,21 @@
     // ------------------------------------
     // Replace the current value matching `symbol` with the `instance`, and return the `NoConflict` object.
     //
-    // If the replacement `instance` is `undefined`, `reset` removes the object reference altogether.
+    // If the replacement `instance` is `undefined`, `reset` removes the object reference altogether. (Exception:
+    // when the `ensureDefined` option is set, nothing happens.)
     NoConflict.prototype.reset = function (symbol, instance) {
         var parts = (symbol || '').split('.'),
             instanceName = parts.pop(),
-            context = this.resolve(parts);
+            context = parts.length ? this.resolve(parts) : this._settings.context;
 
-        if (!/undefined/.text(typeof context + typeof instanceName)) {
+        if (!/undefined/.test(typeof context + typeof instanceName)) {
             if (typeof instance === 'undefined') {
-                delete context[instanceName];
+                if (!this.ensureDefined()) {
+                    delete context[instanceName];
+                }
             }
             else {
-                context[instanceName] = instance
+                context[instanceName] = instance;
             }
         }
 
@@ -228,7 +276,7 @@
     };
 
 
-    // Class NoConflictNamespace
+    // Class - NoConflictNamespace
     // =========================
     // An insert-order preserving hash.  (Use the provided `get`, `set` methods instead of directly manipulating
     // the object.)
@@ -261,6 +309,20 @@
         return this._data;
     };
 
+    // getValues (symbols)
+    // -------------------
+    // Returns an array of all values in the namespace, either in insert order or the order specified by `symbols`.
+    NoConflictNamespace.prototype.getValues = function (symbols) {
+        var values = [],
+            iterKeys = symbols ? symbols : this._keys;
+
+        for (var i = 0; i < iterKeys.length; i++) {
+            values.push(this.get(iterKeys[i]));
+        }
+
+        return values;
+    };
+
     // with (handler [, thisObj])
     // --------------------------
     // Emulate a `with` statement on the namespace by passing values to a handler function in order of insertion.
@@ -275,17 +337,10 @@
     // Emulate a `with` statement as above, except pass values to the handler in the order indicated by `symbols`.
     NoConflictNamespace.prototype.with = function (symbols, handler, thisObj) {
         isFunction(symbols) && (thisObj = handler, handler = symbols, symbols = null);
-
-        var values = [],
-            iterKeys = symbols ? symbols : this._keys;
-
-        for (var i = 0; i < iterKeys.length; i++) {
-            values.push(this.get(iterKeys[i]));
-        }
-        isFunction(handler) && handler.apply(thisObj || this, values);
+        isFunction(handler) && handler.apply(thisObj || this, this.getValues(symbols));
     };
 
-    // Set the namespace class as a property available to `NoConflict` instances.
+    // Expose the namespace class as a property available to `NoConflict` instances.
     NoConflict.prototype.Namespace = NoConflictNamespace;
 
 
@@ -293,11 +348,11 @@
     // ========
 
     // Create the global `NoConflict` instance.
-    root['NoConflict'] = NoConflict.context();
+    root['NoConflict'] = NoConflict.context({global: 'true'});
 
     //Register [AMD](https://github.com/amdjs/amdjs-api/wiki/AMD) module, if applicable.
     typeof define === 'function' && define('noconflict', [], function () {
-        return nc;
+        return root.NoConflict;
     });
 
 }).call(null);
