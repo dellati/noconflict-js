@@ -7,6 +7,13 @@
 
 Conflict management for JavaScript.
 
+The world of JavaScript libraries and plugins is still somewhat of a wilderness. Some attempts to correct this
+ (CommonJS, AMD + requirejs) go pretty far, but often at the expense of developers having to modify
+ their dependencies, and these solutions require new projects to adopt certain conventions (which in most cases
+ is justified).  NoConflict aims to be a bridge between the wilderness and the packaged-JavaScript world.  It permits
+  the use of older or otherwise packaging-unaware scripts in a controlled and conflict-free manner, and in their
+  vanilla state, and helps library developers embed basic `noConflict` functionality with minimal effort.
+
 
 Features
 =========
@@ -14,7 +21,8 @@ Features
 * `NoConflict` provides a unified interface for managing conflicts with global objects, whether or not those objects
   provide conflict management on their own.
 
-* Use `NoConflict` as a mixin, adding conflict management to your own global exports.
+* Use `NoConflict` as a mixin, adding conflict management to your own global exports.   NoConflict weighs just 3.1k
+minified (~1.1k gzipped), so it won't add significantly to your download weight.
 
 * Use `NoConflict` as an import tool, creating an environment for your module while restoring previous global state.
 
