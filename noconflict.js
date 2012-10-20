@@ -136,16 +136,15 @@
     // The `noConflict` method returns a single value for a single symbol; else a mapping of symbols to values.
     NoConflict.prototype.mixin = function () {
         var symbols = arguments.length > 1 ? Array.prototype.slice.call(arguments) : arguments[0],
-            nc = this.context(extend(clone(this._settings), {global: false, useNative: false})),
-            mixin = {
-                noConflict: function () {
-                    return isArray(symbols) ? nc.noConflict.apply(nc, symbols).get() : nc.noConflict(symbols);
-                }
-            };
+            nc = this.context(extend(clone(this._settings), {global: false, useNative: false}));
 
         nc.cache(symbols);
 
-        return mixin;
+        return function () {
+            this.noConflict = function () {
+                return isArray(symbols) ? nc.noConflict.apply(nc, symbols).get() : nc.noConflict(symbols);
+            };
+        };
     };
 
     // noConflict (args...)
@@ -352,7 +351,7 @@
 
     //Register [AMD](https://github.com/amdjs/amdjs-api/wiki/AMD) module, if applicable.
     typeof define === 'function' && define('noconflict', [], function () {
-        return root.NoConflict;
+        return root.NoConflict.noConflict();
     });
 
 }).call(null);

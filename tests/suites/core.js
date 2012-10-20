@@ -151,7 +151,8 @@ describe('NoConflict Tests', function () {
             nc.check('a');
             expect(nc._symbolCache['a']).toBe(a);
 
-            var e = nc.mixin('a');
+            var e = {};
+            nc.mixin('a').call(e);
             e.not = 'old';
             e.id = 'a';
             root.a = e;
@@ -173,7 +174,8 @@ describe('NoConflict Tests', function () {
             nc.check('a');
             expect(nc._symbolCache['a']).toBe(a);
 
-            var e = nc.mixin('a');
+            var e = {};
+            nc.mixin('a').call(e);
             e.not = 'old';
             e.id = 'a';
             root.a = e;
@@ -215,10 +217,11 @@ describe('NoConflict Tests', function () {
         });
 
         it('exports noConflict functionality as a mixin for adding conflict management to any object', function () {
-            var oldObj = {old: 'object'};
+            var oldObj = {old: 'object'}, mixin = {};
 
             root.MixinRef = root.Mixin = oldObj;
-            root.MixinRef = root.Mixin = nc.mixin('Mixin', 'MixinRef');
+            nc.mixin('Mixin', 'MixinRef').call(mixin);
+            root.MixinRef = root.Mixin = mixin;
             expect(root.Mixin).not.toEqual(oldObj);
 
             var ncMixinNS = root.Mixin.noConflict();
