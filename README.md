@@ -7,18 +7,18 @@
 
 Conflict management for JavaScript.
 
-The world of JavaScript libraries and plugins is still somewhat of a wilderness. Some attempts to correct this (CommonJS, AMD + requirejs) go pretty far, but often at the expense of developers having to modify their dependencies, and these solutions require new projects to adopt certain conventions (which in most cases is justified).  NoConflict aims to be a bridge between the wilderness and the packaged-JavaScript world.  It permits the use of older or otherwise packaging-unaware scripts in a controlled and conflict-free manner, and in their vanilla state, and helps library developers embed basic `noConflict` functionality with minimal effort.  
+The world of JavaScript libraries and plugins is still somewhat of a wilderness. Some attempts to correct this (CommonJS, AMD + requirejs) go pretty far, but often at the expense of developers having to modify their dependencies, and these solutions require new projects to adopt certain conventions (which in most cases is justified).  NoConflict aims to be a bridge between the wilderness and the packaged-JavaScript world.  It promotes the use of older or otherwise packaging-unaware scripts in a controlled and conflict-free manner, and in their vanilla state, and helps library developers embed basic `noConflict` functionality with minimal effort.
 
 Features
 =========
 
 * `NoConflict` provides a unified interface for managing conflicts with global objects, whether or not those objects provide conflict management on their own.
 
-* Use `NoConflict` as a mixin, adding conflict management to your own global exports.   NoConflict weighs just 3.1k minified (~1.1k gzipped), so it won't add significantly to your download weight.
+* Use `NoConflict` as a mixin, adding conflict management to your own global exports.   NoConflict weighs just 3.1k minified (1.1k gzipped), so it won't add significantly to your download weight.
 
 * Use `NoConflict` as an import tool, creating an environment for your module while restoring previous global state.
 
-* Ideal for managing resources in embedded web widgets, or any context in which the environment your module runs in is unknown or uncontrollable.
+* Ideal for managing resources in embedded web widgets, or any context in which the environment your module runs in is unknown or otherwise uncontrollable.
 
 Source
 =======
@@ -34,18 +34,18 @@ Examples
 Single Object
 -------------
 
-With `NoConflict`, conflict management is generally a two-step process: look for an existing object matching the name you're using, and prevent your code from clobbering that object permanently.
+With `NoConflict`, conflict management is generally a two-step process: look for an existing object matching the global name you're assigning to, and prevent your code from clobbering that object permanently.
 
     <script type="text/javascript">
-        NoConflict.cache('swfobject');
+        var imports = NoConflict(['swfobject']);
     </script>
 
     <script type="text/javascript" src="path/to/vanilla/swfobject.js"></script>
 
     <script type="text/javascript">
         (function () {
-            var swfobject = NoConflict.noConflict('swfobject');
-            // ... do stuff with swfobject
+            var swfobject = imports.get('swfobject');
+            // do stuff with your conflict-managed swfobject....
         })();
     </script>
 
@@ -57,59 +57,67 @@ Multiple Objects
 
 If you had to manage your global objects individually as above, that wouldn't be too useful. You can do the following:
 
-    NoConflict.cache('swfobject', 'MyLibrary', '_', 'jQuery');
+    var imports = NoConflict(['swfobject', 'MyLibrary', '_', {symbol: 'jQuery', args: [true]}]);
 
-    // ...load scripts
+    // load scripts
 
-    (function () {
-        var nameSpace = NoConflict.noConflict('swfobject', '_', 'MyLibrary', ['jQuery', true]);
-        // ...do stuff with namespace object.
-    }();
-
-Note that `jQuery` is passed as an array: this format allows for zero or more arguments to be passed to `jQuery`'s native `noConflict` method (passing `true` in this case causes `jQuery` to remove both itself and `$` from the global object).  By default, `NoConflict` uses an object's native `noConflict` method if present, so in this case underscore's would be called as well.
-
-Note that in the example above, it isn't strictly necessary to pass `_` and `jQuery` to the `cache()` method, but it can be a benefit depending on what you're wanting to do.  For instance, you can use `noConflict` in the following way:
-
-    var ns = NoConflict.noConflict(NoConflict.ALL);
-
-This mode grabs all the names in `NoConflict`'s cache and runs the equivalent of the multiple-object mode on the list.
-
-
-Namespace Object
-----------------
-
-In any case where multiple names are passed to `NoConflict.noConflict()`, the return value is a namespace object, which keeps track of the order in which names are specified in the `noConflict` call.  The main benefit to this is importing: 
-
-    var ns = NoConflict.noConflict('swfobject', '_', 'MyLibrary', ['jQuery', true]);
-    ns.with(function (swfobject, _, MyLibrary, jQuery) {
-        // do stuff
+    imports.with(function(swfobject, MyLibrary, _, $) {
+        // do stuff with your conflict-managed dependencies....
     });
 
-If you're importing a large number of objects, you may wish to do the following instead:
+Note that `jQuery` is passed as an object: this format allows for zero or more arguments to be passed to `jQuery`'s native `noConflict` method (passing `true` in this case causes `jQuery` to remove itself and restore `$` in the global scope).  By default, `NoConflict` uses an object's native `noConflict` method if present, so in this case underscore's would be called as well.
 
-    ns.with(function () {
-        var $ = this.get('jQuery'),
-            node = $('body'),
-            // ...
-    });
+`NoConflict` will also ensure, by default, that restoring a global name's previous value will not leave it undefined, if the current value is defined. Both of these default behaviors can be overridden by passing an `options` object:
 
-Note that `this` is bound to the namespace object inside the `with` function.  `with` has a couple variations:
+    var symbols = ['swfobject', 'MyLibrary', '_', {symbol: 'jQuery', args: [true]}],
+        options = {
+            useNative: false,
+            ensureDefined: false
+        },
+        imports = NoConflict(symbols, options);
 
-    ns.with(handler, thisObj);
+    // ...
 
-(Binds `this` to an object of your choosing in the call to `handler`.)
+In this case, when conflict management occurs (i.e. when `.get()` or `.with()` are called), any names whose previous
+values were not defined are removed from global scope, and native `.noConflict()` methods are ignored.
 
-    ns.with(names, handler [, thisObj])
 
-(Passes values to `handler` in the order dictated by `names` instead of insert order. This variant can also accept a `thisObj` to bind the `handler` to.)
+Context Option
+---------------
+
+`NoConflict` can operate over any object as its scope, by setting the `context` option:
+
+    var classes = {
+        Model: function(){},
+        Widget: function () {console.log(Model().value);}
+    };
+
+    var nc = NoConflict(['Model'], {context: classes});
+
+    classes.Model = function () {
+        console.log('Super-specialty variant: actually does stuff!');
+        this.value = 'Fusion';
+    };
+
+    classes.Widget(); // Logs 'Fusion'
+
+    // Restore previous state.
+    nc.noConflict();
+    classes.Widget(); // Logs undefined
+
+
+The `context` option defines the object that serves as the basis for name resolution. In this case, we create a
+`NoConflict` instance on the `classes` scope in order to temporarily alter its state in a reversible manner.
+
 
 
 Recusal
---------
+========
 
 Naturally, `NoConflict` can conflict manage itself:
 
-    var nc = NoConflict.noConflict();
+    var NoConflict = NoConflict.noConflict();
+
 
 
 Mixin
@@ -121,7 +129,7 @@ You can use `NoConflict`'s `mixin` method to add a `noConflict` method to your o
         var top = this,
             MyGlobal = function () {};
 
-        NoConflict.mixin('MyGlobal').call(MyGlobal.prototype);
+        NoConflict(['MyGlobal']).mixin().call(MyGlobal.prototype);
 
         MyGlobal.prototype.awesomeness = function () {
             //...
@@ -137,36 +145,3 @@ Then users of your module can simply do the following:
     var better = MyGlobal.noConflict();
 
 "Far better," indeed.
-
-
-Options + Factory Method
-========================
-
-`NoConflict` can operate over any namespace that's a real object (which excludes free variables and the local scope).  To create a new `NoConflict` instance, use the factory method:
-
-    jQuery.fn.myPlugin = function () {...};
-
-    var options = {
-            useNative: false,
-            ensureDefined: true,
-            context: jQuery.fn
-        },
-        nc2 = NoConflict.context(options);
-
-        nc2.cache('myPlugin');
-        var myPlugin = nc2.noConflict('myPlugin');
-
-The `ensureDefined` option tells `NoConflict` to leave the current object in place after a `noConflict` call, if replacing it with the previous value would leave it `undefined`.  The default value for this option is `false`.
-
-The `useNative` option tells `NoConflict` whether to call the affected object's native `noConflict` method if present.  The default value is `true`.
-
-The `context` option defines the object that serves as the basis for name resolution. In this case, the `jQuery` plugin space.
-
-(Admittedly, this example is silly: almost no proper jQuery plugin is usable outside the $.fn namespace, unless called in the context of a jQuery object. Contact me if you have a better example. I'm begging you.)
-
-After a `NoConflict` instance is created, you can change `useNative` and `ensureDefined` as follows:
-
-    nc2.ensureDefined(false);
-    nc2.useNative(true);
-
-Instances created via the `context` method are identical to the global instance with one exception: only `NoConflict` can conflict-manage itself.

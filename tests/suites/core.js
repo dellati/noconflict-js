@@ -1,91 +1,91 @@
 describe('NoConflict Tests', function () {
-    var root = typeof window === 'undefined' ? global : window;
+    var root = typeof window === 'undefined' ? global : window,
+        ncGlobal = root.NoConflict;
+
     root.NoConflictTest = {};
 
     describe('Environment Tests', function () {
         it('should exist, and contain a nested namespace class.', function () {
             expect(root.NoConflict).toBeDefined();
-            expect(root.NoConflict.Namespace).toBeDefined();
             expect(root.NoConflictTest).toBeDefined();
         });
 
-        it('should expose constants for the version and for all cached symbols', function () {
-            expect(root.NoConflict.ALL).toBeDefined();
+        it('should expose the version on the global object and instances', function () {
             expect(root.NoConflict.version).toBeDefined();
+            expect(root.NoConflict().version).toBeDefined();
         });
     });
 
     describe('NoConflict Tests', function () {
         var ns,
-            nc = root.NoConflict,
+            nc,
             nsGlobal = root.NoConflictTest;
 
         beforeEach(function () {
+            nc = root.NoConflict();
             ns = {duck: {duck: 'goose', '!@#$': 'stuff'}};
             nsGlobal.duck = ns.duck;
         });
 
         afterEach(function () {
             nc.clear();
+            // Some tests displace the global object.
+            root.NoConflict = ncGlobal;
         });
 
         it('resolves symbols into object instances, with an optional starting context', function () {
-            expect(nc.resolve('NoConflict')).toBe(nc);
+            expect(nc.resolve('NoConflict')).toBe(root.NoConflict);
             expect(nc.resolve('NoConflictTest.duck.duck')).toBe('goose');
             expect(nc.resolve('duck', ns.duck)).toBe('goose');
             expect(nc.resolve('duck.!@#$', ns)).toBe('stuff');
         });
 
-        it('checks for the presence of and caches an object matching a symbol', function () {
-            expect(nc._symbolCache['NoConflict']).toBeUndefined();
-            nc.check('NoConflict');
-            expect(nc._symbolCache['NoConflict']).toBe(nc);
-        });
-
         it('checks for and caches objects matching a symbol or list of symbols', function () {
             expect(nc._symbolCache).toEqual({});
             nc.cache('NoConflict');
-            nc.cache('NoConflictTest.duck.duck', 'NoConflictTest.duck.!@#$');
+            nc.cache('NoConflictTest.duck.duck', 'NoConflictTest.duck.!@#$', {symbol: 'jQuery', args: [true]});
             expect(nc._symbolCache).toEqual({
-                'NoConflict': nc,
+                'NoConflict': root.NoConflict,
                 'NoConflictTest.duck.duck': 'goose',
-                'NoConflictTest.duck.!@#$': 'stuff'
+                'NoConflictTest.duck.!@#$': 'stuff',
+                'jQuery': undefined
             });
         });
 
         it('generates a new context for conflict management [factory method]', function () {
-            nc.check('NoConflictTest');
+            nc.cache('NoConflictTest');
             expect(nc._symbolCache['NoConflictTest']).toBe(nsGlobal);
-            var nc2 = root.NoConflict.context();
+            var nc2 = root.NoConflict();
             expect(nc2._symbolCache).toEqual({});
             expect(nc._symbolCache['NoConflictTest']).toBe(nsGlobal);
         });
 
         it('replaces the current instance assigned to a symbol with the cached instance.', function () {
-            nc.check('NoConflictTest');
+            nc.cache('NoConflictTest');
             expect(nc._symbolCache['NoConflictTest']).toBe(nsGlobal);
+
             var clobberNS = {other: 'object'};
             root.NoConflictTest = clobberNS;
-            var unClobber = root.NoConflict.noConflict('NoConflictTest');
-            expect(nc._symbolCache['NoConflictTest']).toBe(nsGlobal);
+
+            nc.with(function () {
+                expect(this.get('NoConflictTest')).toEqual(clobberNS);
+            });
+
             expect(root.NoConflictTest).toBe(nsGlobal);
-            expect(unClobber).toBe(clobberNS);
         });
 
         it('can empty the symbol cache', function () {
             nc.cache('NoConflict', 'NoConflictTest');
-            expect(nc._symbolCache['NoConflict']).toBe(nc);
+            expect(nc._symbolCache['NoConflict']).toBe(root.NoConflict);
             expect(nc._symbolCache['NoConflictTest']).toBe(nsGlobal);
             nc.clear();
             expect(nc._symbolCache).toEqual({});
         });
 
         it('can replace itself with a previous instance, if it\'s the global instance', function () {
-            var nc2 = nc.noConflict();
+            var ncG = root.NoConflict.noConflict();
+            expect(ncG).toBe(ncGlobal);
             expect(root.NoConflict).toBeUndefined();
-            nc = root.NoConflict = nc2.context({global: true});
-            nc2.noConflict();
-            expect(root.NoConflict).toBeDefined();
         });
 
         it('can replace all current instances of cached symbols with their cached instances', function () {
@@ -102,16 +102,16 @@ describe('NoConflict Tests', function () {
             nc.cache('a', 'b', 'c', 'd');
             root.a = e, root.b = f, root.c = g, root.d = h;
 
-            var ns = nc.noConflict(nc.ALL);
+            nc.noConflict();
 
             expect(root.a).toBe(a);
             expect(root.b).toBe(b);
             expect(root.c).toBe(c);
             expect(root.d).toBe(d);
-            expect(ns.get('a')).toBe(e);
-            expect(ns.get('b')).toBe(f);
-            expect(ns.get('c')).toBe(g);
-            expect(ns.get('d')).toBe(h);
+            expect(nc.namespace().get('a')).toBe(e);
+            expect(nc.namespace().get('b')).toBe(f);
+            expect(nc.namespace().get('c')).toBe(g);
+            expect(nc.namespace().get('d')).toBe(h);
 
             delete root.a, delete root.b, delete root.c, delete root.d;
         });
@@ -130,16 +130,16 @@ describe('NoConflict Tests', function () {
             nc.cache('a', 'b', 'c', 'd');
             root.a = e, root.b = f, root.c = g, root.d = h;
 
-            var ns = nc.noConflict('a', 'b', 'c', 'd');
+            nc.noConflict('a', 'b', 'c', 'd');
 
             expect(root.a).toBe(a);
             expect(root.b).toBe(b);
             expect(root.c).toBe(c);
             expect(root.d).toBe(d);
-            expect(ns.get('a')).toBe(e);
-            expect(ns.get('b')).toBe(f);
-            expect(ns.get('c')).toBe(g);
-            expect(ns.get('d')).toBe(h);
+            expect(nc.namespace().get('a')).toBe(e);
+            expect(nc.namespace().get('b')).toBe(f);
+            expect(nc.namespace().get('c')).toBe(g);
+            expect(nc.namespace().get('d')).toBe(h);
 
             delete root.a, delete root.b, delete root.c, delete root.d;
         });
@@ -148,20 +148,20 @@ describe('NoConflict Tests', function () {
             var a = {old: 'object', id: 'a'};
 
             root.a = a;
-            nc.check('a');
+            nc.cache('a');
             expect(nc._symbolCache['a']).toBe(a);
 
             var e = {};
-            nc.mixin('a').call(e);
+            nc.mixin().call(e);
             e.not = 'old';
             e.id = 'a';
             root.a = e;
 
             spyOn(e, 'noConflict').andCallThrough();
-            var result = nc.noConflict('a');
+            nc.noConflict();
 
             expect(e.noConflict).toHaveBeenCalled();
-            expect(result).toBe(e);
+            expect(nc.namespace().get('a')).toEqual(e);
             expect(root.a).toBe(a);
 
             delete root.a;
@@ -171,7 +171,7 @@ describe('NoConflict Tests', function () {
             var a = {old: 'object', id: 'a'};
 
             root.a = a;
-            nc.check('a');
+            nc.cache('a');
             expect(nc._symbolCache['a']).toBe(a);
 
             var e = {};
@@ -181,46 +181,44 @@ describe('NoConflict Tests', function () {
             root.a = e;
 
             spyOn(e, 'noConflict').andCallThrough();
-            var result = nc.noConflict(['a', 'arg1', 'arg2']);
+            nc.noConflict({symbol: 'a', args:['arg1', 'arg2']});
 
             expect(e.noConflict).toHaveBeenCalledWith('arg1', 'arg2');
-            expect(result).toBe(e);
+            expect(nc.namespace().get('a')).toBe(e);
             expect(root.a).toBe(a);
 
             delete root.a;
         });
 
         it('provides an option to preserve the current instance if there is no cached instance', function () {
-            nc.check('a');
-            nc.ensureDefined(true);
+            nc = root.NoConflict(['a'], {ensureDefined:true});
+            nc.cache('a');
             var a = {not: 'old', id: 'a'};
             root.a = a;
-            var result = nc.noConflict('a');
-            expect(result).toBe(a);
+            expect(nc.namespace().get('a')).toBe(a);
             expect(root.a).toBe(a);
-            nc.ensureDefined(false);
-            result = nc.noConflict('a');
-            expect(result).toBe(a);
+            nc._settings.ensureDefined = false;
+            nc.noConflict('a');
+            expect(nc.namespace().get('a')).toBe(a);
             expect(root.a).toBeUndefined();
         });
 
         it('provides an option to set the effective root object for conflict management', function () {
-            var ncx = nc.context({context: nsGlobal}),
+            var ncx = root.NoConflict([], {context: nsGlobal}),
                 orig = nsGlobal.duck,
                 obj = {clobbered: 'yes'};
 
-            ncx.check('duck');
+            ncx.cache('duck');
             nsGlobal.duck = obj;
-            var result = ncx.noConflict('duck');
+            expect(ncx.namespace().get('duck')).toBe(obj);
             expect(nsGlobal.duck).toBe(orig);
-            expect(result).toBe(obj);
         });
 
         it('exports noConflict functionality as a mixin for adding conflict management to any object', function () {
             var oldObj = {old: 'object'}, mixin = {};
 
             root.MixinRef = root.Mixin = oldObj;
-            nc.mixin('Mixin', 'MixinRef').call(mixin);
+            root.NoConflict(['Mixin', 'MixinRef']).mixin().call(mixin);
             root.MixinRef = root.Mixin = mixin;
             expect(root.Mixin).not.toEqual(oldObj);
 
@@ -236,14 +234,14 @@ describe('NoConflict Tests', function () {
     });
 
     describe('NoConflictNamespace Tests', function () {
-        var nc = root.NoConflict,
+        var nc = root.NoConflict(),
             ns,
             objA = {duck: 'goose'},
             objB = {not: 'a duck'},
             objC = {a: 'computer'};
 
         beforeEach(function () {
-            ns = new nc.Namespace;
+            ns = nc.namespace();
             ns.set('duck', objA);
             ns.set('apple', objB);
             ns.set('apple2', objC);
@@ -253,10 +251,9 @@ describe('NoConflict Tests', function () {
             var objD = {an: 'animal'};
             ns.set('cat', objD);
             expect(ns.getValues()).toEqual([objA, objB, objC, objD]);
-            expect(ns.getValues(['apple', 'apple2', 'cat', 'duck'])).toEqual([objB, objC, objD, objA]);
         });
 
-        it('executes a callback with namespace values as arguments in the specified (or insert) order', function () {
+        it('executes a callback with namespace values as arguments in insert order', function () {
             ns.with(function (duck, apple, apple2) {
                 expect(duck).toBe(objA);
                 expect(this.get('duck')).toBe(objA);
@@ -265,32 +262,6 @@ describe('NoConflict Tests', function () {
                 expect(apple2).toBe(objC);
                 expect(this.get('apple2')).toBe(objC);
             });
-
-            ns.with(['apple', 'apple2', 'duck'], function (apple, apple2, duck) {
-                expect(duck).toBe(objA);
-                expect(apple).toBe(objB);
-                expect(apple2).toBe(objC);
-                expect(this).toBe(ns);
-            });
-        });
-
-        it('executes a callback with namespace values, bound to a custom object', function () {
-            var thisObj = {thing: 'smash'};
-            ns.with(function (duck, apple, apple2) {
-                expect(duck).toBe(objA);
-                expect(apple).toBe(objB);
-                expect(apple2).toBe(objC);
-                expect(this).toBe(thisObj);
-
-            }, thisObj);
-
-            ns.with(['apple', 'apple2', 'duck'], function (apple, apple2, duck) {
-                expect(duck).toBe(objA);
-                expect(apple).toBe(objB);
-                expect(apple2).toBe(objC);
-                expect(this).toBe(thisObj);
-
-            }, thisObj);
         });
     });
 });
