@@ -23,9 +23,9 @@ Features
 Source
 =======
 
-The project source and licensing information is available on [github](http://github.com/mattucf/noconflict).
+The project source and licensing information is available on [github](http://github.com/mattucf/noconflict-js/).
 
-You can view the annotated source listing [here](docs/noconflict.html).
+You can view the annotated source listing [here](http://mattucf.github.com/noconflict-js/docs/noconflict.html).
 
 Examples
 ========
