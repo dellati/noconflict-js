@@ -191,7 +191,7 @@ describe('NoConflict Tests', function () {
         });
 
         it('provides an option to preserve the current instance if there is no cached instance', function () {
-            nc = root.NoConflict(['a'], {ensureDefined:true});
+            nc = root.NoConflict(['a']);
             nc.cache('a');
             var a = {not: 'old', id: 'a'};
             root.a = a;
@@ -201,6 +201,7 @@ describe('NoConflict Tests', function () {
             nc.noConflict('a');
             expect(nc.namespace().get('a')).toBe(a);
             expect(root.a).toBeUndefined();
+            expect('a' in root).toBe(false);
         });
 
         it('provides an option to set the effective root object for conflict management', function () {

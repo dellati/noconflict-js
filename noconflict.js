@@ -206,6 +206,7 @@
         if (!/undefined/.test(typeof context + typeof instanceName)) {
             if (typeof instance === 'undefined') {
                 if (!this._settings.ensureDefined) {
+                    context[instanceName] = instance;
                     delete context[instanceName];
                 }
             }
