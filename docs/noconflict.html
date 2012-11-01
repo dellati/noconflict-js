@@ -134,6 +134,7 @@ when the <code>ensureDefined</code> option is set, nothing happens.)</p>        
         <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="sr">/undefined/</span><span class="p">.</span><span class="nx">test</span><span class="p">(</span><span class="k">typeof</span> <span class="nx">context</span> <span class="o">+</span> <span class="k">typeof</span> <span class="nx">instanceName</span><span class="p">))</span> <span class="p">{</span>
             <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span> <span class="nx">instance</span> <span class="o">===</span> <span class="s1">&#39;undefined&#39;</span><span class="p">)</span> <span class="p">{</span>
                 <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="k">this</span><span class="p">.</span><span class="nx">_settings</span><span class="p">.</span><span class="nx">ensureDefined</span><span class="p">)</span> <span class="p">{</span>
+                    <span class="nx">context</span><span class="p">[</span><span class="nx">instanceName</span><span class="p">]</span> <span class="o">=</span> <span class="nx">instance</span><span class="p">;</span>
                     <span class="k">delete</span> <span class="nx">context</span><span class="p">[</span><span class="nx">instanceName</span><span class="p">];</span>
                 <span class="p">}</span>
             <span class="p">}</span>
